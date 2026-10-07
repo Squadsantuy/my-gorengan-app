@@ -1,0 +1,19 @@
+{
+  "name": "my-gorengan-app",
+  "version": "1.0.0",
+  "description": "Aplikasi Super App MyGorengan Modern berbasis PWA",
+  "main": "index.html",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "keywords": [
+    "gorengan",
+    "pwa",
+    "vercel"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vercel/node": "^3.0.0"
+  }
+}
