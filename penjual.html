@@ -3,66 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyGorengan - Pesanan Masuk (Penjual)</title>
+    <title>Dapur Abang Gorengan - MyGorengan</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-gray-900 text-white p-4 font-sans">
+<body class="bg-gray-900 text-white min-h-screen p-4">
 
-    <!-- Header Penjual -->
-    <div class="flex justify-between items-center border-b border-gray-800 pb-4 mb-6">
+    <header class="flex justify-between items-center mb-6 pb-4 border-b border-gray-800">
         <div>
-            <h1 class="text-xl font-bold text-amber-500">👨‍🍳 Dapur Gerobak Pak Masrur</h1>
-            <p class="text-xs text-gray-400">Daftar Antrean Pesanan Masuk</p>
+            <h1 class="text-xl font-bold text-amber-500">👨‍🍳 Dapur Abang Gorengan</h1>
+            <p class="text-xs text-gray-400">Pantau pesanan masuk secara real-time</p>
         </div>
-        <span class="bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1 rounded-full font-semibold flex items-center gap-1">
-            <span class="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></span> Online
+        <span class="text-xs bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-bold flex items-center gap-1">
+            <i class="fa-solid fa-circle text-[8px] animate-ping"></i> Realtime Sync
         </span>
-    </div>
+    </header>
 
-    <!-- Daftar Pesanan -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="daftar-pesanan">
-        
-        <!-- Kartu Pesanan Contoh -->
-        <div class="bg-gray-800 border-2 border-amber-500 rounded-2xl p-4 shadow-lg">
-            <div class="flex justify-between items-center mb-2">
-                <span class="bg-amber-500 text-black font-extrabold px-2.5 py-0.5 rounded-lg text-sm">
-                    #A-04
-                </span>
-                <span class="text-xs text-gray-400">18:42 WIB</span>
-            </div>
-            
-            <div class="border-y border-gray-700 py-3 my-2 space-y-1">
-                <div class="flex justify-between text-sm">
-                    <span>2x Tahu Isi Crispy</span>
-                    <span class="font-bold">Rp 4.000</span>
-                </div>
-                <div class="flex justify-between text-sm">
-                    <span>3x Tempe Mendoan</span>
-                    <span class="font-bold">Rp 6.000</span>
-                </div>
-                <p class="text-xs text-amber-400 mt-2">🔥 Note: Extra Crispy!</p>
-            </div>
-
-            <div class="flex justify-between items-center mt-3">
-                <span class="text-xs text-gray-400">Total: <b class="text-white">Rp 10.000</b> (QRIS)</span>
-                <button onclick="selesaikanPesanan(this)" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs transition">
-                    Selesai Digoreng Otomatis
-                </button>
-            </div>
-        </div>
-
+    <div id="daftar-pesanan" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Kartu Pesanan akan muncul otomatis di sini -->
     </div>
 
     <script>
-        function selesaikanPesanan(btn) {
-            const card = btn.closest('div.bg-gray-800');
-            card.classList.remove('border-amber-500');
-            card.classList.add('border-emerald-500', 'opacity-60');
-            btn.className = 'bg-gray-700 text-emerald-400 font-bold px-4 py-2 rounded-xl text-xs cursor-default';
-            btn.innerHTML = '✓ Siap Diambil';
-            btn.onclick = null;
+        const SUPABASE_URL = 'https://nibxqxbvwrnvgjbncvys.supabase.co';
+        const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function loadPesananAwal() {
+            const { data, error } = await supabaseClient
+                .from('pesanan')
+                .select('*')
+                .order('id', { ascending: false });
+
+            if (data) {
+                document.getElementById('daftar-pesanan').innerHTML = '';
+                data.forEach(p => tambahKartuPesanan(p));
+            }
         }
+
+        // Realtime Listener untuk Pesanan Baru dan Perubahan Status Pembayaran
+        supabaseClient
+            .channel('penjual_dapur')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'pesanan' },
+                (payload) => {
+                    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                        playBellSound();
+                        loadPesananAwal(); // Refresh kartu saat ada update status / pesanan baru
+                    }
+                }
+            )
+            .subscribe();
+
+        function tambahKartuPesanan(pesanan) {
+            const container = document.getElementById('daftar-pesanan');
+            const isDone = pesanan.status === 'siap_ambil';
+            const isUnpaid = pesanan.status === 'menunggu_pembayaran';
+
+            const cardHtml = `
+                <div id="card-${pesanan.id}" class="bg-gray-800 border-2 ${isDone ? 'border-gray-700 opacity-60' : (isUnpaid ? 'border-amber-500/40' : 'border-amber-500')} rounded-2xl p-4 shadow-lg space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="bg-amber-500 text-black font-extrabold px-3 py-1 rounded-lg text-sm">#A-0${pesanan.id}</span>
+                        <span class="text-xs ${isUnpaid ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10'} px-2 py-1 rounded font-bold">
+                            ${isUnpaid ? '⏳ Menunggu Bayar' : (isDone ? '✅ Selesai' : '🔥 Siap Digoreng')}
+                        </span>
+                    </div>
+
+                    <div class="border-y border-gray-700 py-2 text-xs space-y-1">
+                        <p class="text-amber-400 font-semibold">Tingkat Crispy: ${pesanan.crispy_level}</p>
+                        <p class="text-gray-300">Total: <b class="text-white">Rp ${pesanan.total.toLocaleString('id-ID')}</b></p>
+                    </div>
+
+                    <div class="flex justify-end">
+                        ${isDone 
+                            ? `<span class="text-xs text-emerald-400 font-bold">✓ Gorengan Siap Diambil</span>` 
+                            : `<button onclick="selesaikanPesanan(${pesanan.id}, this)" ${isUnpaid ? 'disabled class="opacity-50 cursor-not-allowed bg-gray-700 text-gray-400 font-bold px-4 py-2 rounded-xl text-xs"' : 'class="bg-amber-500 hover:bg-amber-600 text-black font-extrabold px-4 py-2 rounded-xl text-xs"'}>
+                                ${isUnpaid ? 'Menunggu Pembayaran...' : 'Tandai Selesai Digoreng'}
+                               </button>`
+                        }
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', cardHtml);
+        }
+
+        async function selesaikanPesanan(id, btn) {
+            btn.disabled = true;
+            btn.innerText = 'Memperbarui...';
+
+            const { error } = await supabaseClient
+                .from('pesanan')
+                .update({ status: 'siap_ambil' })
+                .eq('id', id);
+
+            if (error) {
+                alert('Gagal memperbarui status: ' + error.message);
+                btn.disabled = false;
+            }
+        }
+
+        function playBellSound() {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.play().catch(e => {});
+        }
+
+        loadPesananAwal();
     </script>
 </body>
 </html>
