@@ -1,18 +1,39 @@
-// File: api/webhook.js
-export default function handler(req, res) {
-  if (req.method === 'POST') {
-    const { order_id, transaction_status } = req.body;
+import { createClient } from '@supabase/supabase-js';
 
-    if (transaction_status === 'settlement' || transaction_status === 'capture') {
-      // Pembayaran BERHASIL
-      // Update status pesanan di database dari 'menunggu' -> 'digoreng'
-      console.log(`Pesanan #${order_id} berhasil dibayar! Sinyal dikirim ke penjual.`);
-      
-      return res.status(200).json({ status: 'success', message: 'Status pesanan berhasil diperbarui' });
-    }
+const SUPABASE_URL = 'https://nibxqxbvwrnvgjbncvys.supabase.co';
+const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    return res.status(400).json({ status: 'failed', message: 'Pembayaran belum/gagal diverifikasi' });
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  res.status(405).json({ message: 'Method Not Allowed' });
+  try {
+    const { order_id, payment_status } = req.body;
+
+    if (!order_id || payment_status !== 'PAID') {
+      return res.status(400).json({ success: false, message: 'Payload pembayaran tidak valid' });
+    }
+
+    // Update status pesanan di Supabase menjadi "lagi_digoreng"
+    const { data, error } = await supabase
+      .from('pesanan')
+      .update({ status: 'lagi_digoreng' })
+      .eq('id', order_id)
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Webhook diterima, status pesanan berhasil diperbarui!',
+      data
+    });
+  } catch (err) {
+    console.error('Webhook Payment Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal memproses webhook' });
+  }
 }
