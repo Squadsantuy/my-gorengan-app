@@ -21,6 +21,11 @@
         }
     </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#121212">
 </head>
 <body class="bg-gray-100 flex justify-center items-center min-h-screen p-0 sm:p-4">
 
@@ -150,26 +155,32 @@
                 </div>
             </div>
             
-            <button onclick="prosesCheckout()" class="w-full bg-brand hover:bg-brandDark text-white font-bold py-3.5 rounded-2xl transition duration-200 shadow-lg shadow-brand/30 flex justify-center items-center gap-2">
+            <button id="btn-pesan" onclick="prosesCheckout()" class="w-full bg-brand hover:bg-brandDark text-white font-bold py-3.5 rounded-2xl transition duration-200 shadow-lg shadow-brand/30 flex justify-center items-center gap-2">
                 <span>Pesan Sekarang</span>
                 <i class="fa-solid fa-arrow-right text-sm"></i>
             </button>
         </div>
 
-        <!-- Modal Status Pesanan (Hidden by default) -->
+        <!-- Modal Status Pesanan & Pembayaran -->
         <div id="modal-status" class="hidden absolute inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6">
             <div class="bg-cardBg border border-gray-800 p-6 rounded-3xl text-center w-full max-w-xs space-y-4 shadow-2xl">
-                <div class="w-16 h-16 bg-brand/20 text-brand rounded-full flex items-center justify-center mx-auto text-2xl animate-bounce">
+                <div id="modal-icon" class="w-16 h-16 bg-brand/20 text-brand rounded-full flex items-center justify-center mx-auto text-2xl animate-bounce">
                     🍳
                 </div>
                 <div>
-                    <h3 class="text-lg font-bold">Pesanan Diproses!</h3>
+                    <h3 id="modal-title" class="text-lg font-bold">Pesanan Diproses!</h3>
                     <p class="text-xs text-gray-400 mt-1">Nomor Antrean Anda:</p>
-                    <span class="text-3xl font-black text-brand block my-1">#A-04</span>
-                    <p class="text-[11px] text-amber-400 bg-amber-500/10 py-1.5 rounded-lg border border-amber-500/20">
+                    <span id="modal-antrean" class="text-3xl font-black text-brand block my-1">#A-00</span>
+                    <p id="modal-desc" class="text-[11px] text-amber-400 bg-amber-500/10 py-1.5 rounded-lg border border-amber-500/20">
                         Sedang digoreng abang gorengan...
                     </p>
                 </div>
+
+                <!-- Tombol Simulasi Pembayaran Webhook -->
+                <button id="btn-bayar" onclick="simulasiBayarWebhook()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-qrcode"></i> Bayar Via Webhook (QRIS)
+                </button>
+
                 <button onclick="closeModal()" class="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold py-2.5 rounded-xl text-xs">
                     Tutup & Pantau Status
                 </button>
@@ -178,19 +189,17 @@
 
     </div>
 
-    <!-- Script Interaktif -->
+    <!-- Script Supabase & Interaktif -->
     <script>
-        const hargaMap = {
-            'qty-tahu': 2000,
-            'qty-tempe': 2000,
-            'qty-bakwan': 1500
-        };
+        // Supabase Credentials
+        const SUPABASE_URL = 'https://nibxqxbvwrnvgjbncvys.supabase.co';
+        const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const qtyMap = {
-            'qty-tahu': 0,
-            'qty-tempe': 0,
-            'qty-bakwan': 0
-        };
+        const hargaMap = { 'qty-tahu': 2000, 'qty-tempe': 2000, 'qty-bakwan': 1500 };
+        const qtyMap = { 'qty-tahu': 0, 'qty-tempe': 0, 'qty-bakwan': 0 };
+        let selectedCrispyLevel = 'Standard 🟡';
+        let activeOrderId = null;
 
         function updateQty(id, change) {
             qtyMap[id] = Math.max(0, qtyMap[id] + change);
@@ -200,10 +209,9 @@
 
         function hitungTotal() {
             let total = 0;
-            for (let key in qtyMap) {
-                total += qtyMap[key] * hargaMap[key];
-            }
+            for (let key in qtyMap) { total += qtyMap[key] * hargaMap[key]; }
             document.getElementById('total-harga').innerText = 'Rp ' + total.toLocaleString('id-ID');
+            return total;
         }
 
         function selectCrispy(button) {
@@ -213,21 +221,122 @@
             });
             button.classList.remove('border-gray-800', 'bg-cardBg', 'text-gray-400');
             button.classList.add('border-brand', 'bg-brand/10', 'text-brand');
+            selectedCrispyLevel = button.innerText.trim();
         }
 
-        function prosesCheckout() {
-            let total = 0;
-            for (let key in qtyMap) { total += qtyMap[key]; }
-            
-            if (total === 0) {
+        async function prosesCheckout() {
+            const totalHarga = hitungTotal();
+            if (totalHarga === 0) {
                 alert('Pilih minimal 1 gorengan dulu ya!');
                 return;
             }
-            document.getElementById('modal-status').classList.remove('hidden');
+
+            const btnPesan = document.getElementById('btn-pesan');
+            btnPesan.disabled = true;
+            btnPesan.innerText = 'Membuat Pesanan...';
+
+            // Insert ke Supabase Database
+            const { data, error } = await supabaseClient
+                .from('pesanan')
+                .insert([{
+                    items: qtyMap,
+                    crispy_level: selectedCrispyLevel,
+                    total: totalHarga,
+                    status: 'menunggu_pembayaran'
+                }])
+                .select();
+
+            btnPesan.disabled = false;
+            btnPesan.innerHTML = '<span>Pesan Sekarang</span><i class="fa-solid fa-arrow-right text-sm"></i>';
+
+            if (error) {
+                alert('Gagal membuat pesanan: ' + error.message);
+                return;
+            }
+
+            if (data && data.length > 0) {
+                activeOrderId = data[0].id;
+                document.getElementById('modal-antrean').innerText = `#A-0${activeOrderId}`;
+                document.getElementById('modal-status').classList.remove('hidden');
+                
+                // Realtime Sync Status
+                listenRealtimeStatus(activeOrderId);
+            }
+        }
+
+        // Webhook Payment Handler
+        async function simulasiBayarWebhook() {
+            if (!activeOrderId) return;
+
+            const btnBayar = document.getElementById('btn-bayar');
+            btnBayar.innerText = 'Memproses Webhook...';
+            btnBayar.disabled = true;
+
+            try {
+                // Memanggil Endpoint Webhook Serverless API
+                const response = await fetch('/api/webhook', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        order_id: activeOrderId,
+                        payment_status: 'PAID'
+                    })
+                });
+
+                const resData = await response.json();
+                if (resData.success) {
+                    btnBayar.classList.add('hidden'); // Sembunyikan tombol bayar jika sudah lunas
+                } else {
+                    alert('Webhook Gagal: ' + resData.message);
+                    btnBayar.disabled = false;
+                    btnBayar.innerText = 'Bayar Via Webhook (QRIS)';
+                }
+            } catch (err) {
+                console.error('Webhook Error:', err);
+                alert('Gagal terhubung ke API Webhook');
+                btnBayar.disabled = false;
+                btnBayar.innerText = 'Bayar Via Webhook (QRIS)';
+            }
+        }
+
+        // Dengar Perubahan Status Secara Realtime dari Supabase
+        function listenRealtimeStatus(orderId) {
+            supabaseClient
+                .channel(`pembeli_${orderId}`)
+                .on(
+                    'postgres_changes',
+                    { event: 'UPDATE', schema: 'public', table: 'pesanan', filter: `id=eq.${orderId}` },
+                    (payload) => {
+                        const newStatus = payload.new.status;
+                        
+                        if (newStatus === 'lagi_digoreng') {
+                            document.getElementById('modal-title').innerText = 'Pembayaran Lunas!';
+                            document.getElementById('modal-desc').innerText = '🔥 Pesanan sedang digoreng...';
+                            document.getElementById('modal-icon').innerText = '👨‍🍳';
+                            document.getElementById('btn-bayar').classList.add('hidden');
+                        } else if (newStatus === 'siap_ambil') {
+                            document.getElementById('modal-title').innerText = 'Siap Diambil!';
+                            document.getElementById('modal-desc').className = 'text-[11px] text-emerald-400 bg-emerald-500/10 py-1.5 rounded-lg border border-emerald-500/20';
+                            document.getElementById('modal-desc').innerText = '✅ Gorengan kamu sudah ready & hangat!';
+                            document.getElementById('modal-icon').innerText = '🎉';
+                            
+                            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                            audio.play().catch(e => {});
+                        }
+                    }
+                )
+                .subscribe();
         }
 
         function closeModal() {
             document.getElementById('modal-status').classList.add('hidden');
+        }
+
+        // Register Service Worker PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js');
+            });
         }
     </script>
 </body>
