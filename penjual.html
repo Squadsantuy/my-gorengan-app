@@ -26,8 +26,15 @@
 
     <script>
         const SUPABASE_URL = 'https://nibxqxbvwrnvgjbncvys.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
+        const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Kamus Pemetaan ID ke Nama Gorengan
+        const namaGorenganMap = {
+            'qty-tahu': '🥟 Tahu Isi Crispy',
+            'qty-tempe': '🟨 Tempe Mendoan',
+            'qty-bakwan': '🥦 Bakwan Sayur'
+        };
 
         async function loadPesananAwal() {
             const { data, error } = await supabaseClient
@@ -41,7 +48,7 @@
             }
         }
 
-        // Realtime Listener untuk Pesanan Baru dan Perubahan Status Pembayaran
+        // Realtime Listener
         supabaseClient
             .channel('penjual_dapur')
             .on(
@@ -50,7 +57,7 @@
                 (payload) => {
                     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                         playBellSound();
-                        loadPesananAwal(); // Refresh kartu saat ada update status / pesanan baru
+                        loadPesananAwal();
                     }
                 }
             )
@@ -61,6 +68,20 @@
             const isDone = pesanan.status === 'siap_ambil';
             const isUnpaid = pesanan.status === 'menunggu_pembayaran';
 
+            // Mengubah objek JSON items menjadi daftar teks HTML
+            let daftarItemsHtml = '';
+            const items = pesanan.items || {};
+
+            for (let key in items) {
+                if (items[key] > 0) {
+                    const nama = namaGorenganMap[key] || key;
+                    daftarItemsHtml += `<li class="flex justify-between py-1 text-xs border-b border-gray-800">
+                        <span>${nama}</span>
+                        <b class="text-amber-400">x${items[key]}</b>
+                    </li>`;
+                }
+            }
+
             const cardHtml = `
                 <div id="card-${pesanan.id}" class="bg-gray-800 border-2 ${isDone ? 'border-gray-700 opacity-60' : (isUnpaid ? 'border-amber-500/40' : 'border-amber-500')} rounded-2xl p-4 shadow-lg space-y-3">
                     <div class="flex justify-between items-center">
@@ -70,12 +91,24 @@
                         </span>
                     </div>
 
-                    <div class="border-y border-gray-700 py-2 text-xs space-y-1">
-                        <p class="text-amber-400 font-semibold">Tingkat Crispy: ${pesanan.crispy_level}</p>
-                        <p class="text-gray-300">Total: <b class="text-white">Rp ${pesanan.total.toLocaleString('id-ID')}</b></p>
+                    <div class="border-y border-gray-700 py-2 space-y-1">
+                        <p class="text-xs text-amber-400 font-semibold mb-2">Tingkat Crispy: ${pesanan.crispy_level}</p>
+                        
+                        <!-- Rincian Gorengan -->
+                        <div class="bg-gray-900/50 p-2.5 rounded-xl">
+                            <p class="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-wider">Item Pesanan:</p>
+                            <ul>
+                                ${daftarItemsHtml || '<li class="text-xs text-gray-500">Tidak ada item</li>'}
+                            </ul>
+                        </div>
+
+                        <div class="pt-2 flex justify-between items-center">
+                            <span class="text-xs text-gray-400">Total Pembayaran:</span>
+                            <b class="text-white text-sm">Rp ${pesanan.total.toLocaleString('id-ID')}</b>
+                        </div>
                     </div>
 
-                    <div class="flex justify-end">
+                    <div class="flex justify-end pt-1">
                         ${isDone 
                             ? `<span class="text-xs text-emerald-400 font-bold">✓ Gorengan Siap Diambil</span>` 
                             : `<button onclick="selesaikanPesanan(${pesanan.id}, this)" ${isUnpaid ? 'disabled class="opacity-50 cursor-not-allowed bg-gray-700 text-gray-400 font-bold px-4 py-2 rounded-xl text-xs"' : 'class="bg-amber-500 hover:bg-amber-600 text-black font-extrabold px-4 py-2 rounded-xl text-xs"'}>
