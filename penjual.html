@@ -1,147 +1,63 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dapur Abang Gorengan - MyGorengan</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-</head>
-<body class="bg-gray-900 text-white min-h-screen p-4">
+function tambahKartuPesanan(pesanan) {
+    const container = document.getElementById('daftar-pesanan');
+    const isDone = pesanan.status === 'siap_ambil';
+    const isUnpaid = pesanan.status === 'menunggu_pembayaran';
 
-    <header class="flex justify-between items-center mb-6 pb-4 border-b border-gray-800">
-        <div>
-            <h1 class="text-xl font-bold text-amber-500">👨‍🍳 Dapur Abang Gorengan</h1>
-            <p class="text-xs text-gray-400">Pantau pesanan masuk secara real-time</p>
-        </div>
-        <span class="text-xs bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-bold flex items-center gap-1">
-            <i class="fa-solid fa-circle text-[8px] animate-ping"></i> Realtime Sync
-        </span>
-    </header>
+    // Rincian items pesanan
+    let daftarItemsHtml = '';
+    const items = pesanan.items || {};
 
-    <div id="daftar-pesanan" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Kartu Pesanan akan muncul otomatis di sini -->
-    </div>
+    // Loop semua item yang tersimpan di Supabase
+    for (let key in items) {
+        const qty = parseInt(items[key]);
+        if (qty > 0) {
+            let namaBersih = key.replace('qty-', '').toUpperCase(); // merubah 'qty-tahu' jadi 'TAHU'
+            if (key === 'qty-tahu') namaBersih = '🥟 Tahu Isi Crispy';
+            if (key === 'qty-tempe') namaBersih = '🟨 Tempe Mendoan';
+            if (key === 'qty-bakwan') namaBersih = '🥦 Bakwan Sayur';
 
-    <script>
-        const SUPABASE_URL = 'https://nibxqxbvwrnvgjbncvys.supabase.co';
-        const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        // Kamus Pemetaan ID ke Nama Gorengan
-        const namaGorenganMap = {
-            'qty-tahu': '🥟 Tahu Isi Crispy',
-            'qty-tempe': '🟨 Tempe Mendoan',
-            'qty-bakwan': '🥦 Bakwan Sayur'
-        };
-
-        async function loadPesananAwal() {
-            const { data, error } = await supabaseClient
-                .from('pesanan')
-                .select('*')
-                .order('id', { ascending: false });
-
-            if (data) {
-                document.getElementById('daftar-pesanan').innerHTML = '';
-                data.forEach(p => tambahKartuPesanan(p));
-            }
+            daftarItemsHtml += `
+                <li class="flex justify-between py-1 text-xs border-b border-gray-800">
+                    <span class="text-gray-200">${namaBersih}</span>
+                    <b class="text-amber-400">x${qty}</b>
+                </li>`;
         }
+    }
 
-        // Realtime Listener
-        supabaseClient
-            .channel('penjual_dapur')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'pesanan' },
-                (payload) => {
-                    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-                        playBellSound();
-                        loadPesananAwal();
-                    }
-                }
-            )
-            .subscribe();
+    const cardHtml = `
+        <div id="card-${pesanan.id}" class="bg-gray-800 border-2 ${isDone ? 'border-gray-700 opacity-60' : (isUnpaid ? 'border-amber-500/40' : 'border-amber-500')} rounded-2xl p-4 shadow-lg space-y-3">
+            <div class="flex justify-between items-center">
+                <span class="bg-amber-500 text-black font-extrabold px-3 py-1 rounded-lg text-sm">#A-0${pesanan.id}</span>
+                <span class="text-xs ${isUnpaid ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10'} px-2 py-1 rounded font-bold">
+                    ${isUnpaid ? '⏳ Menunggu Bayar' : (isDone ? '✅ Selesai' : '🔥 Siap Digoreng')}
+                </span>
+            </div>
 
-        function tambahKartuPesanan(pesanan) {
-            const container = document.getElementById('daftar-pesanan');
-            const isDone = pesanan.status === 'siap_ambil';
-            const isUnpaid = pesanan.status === 'menunggu_pembayaran';
-
-            // Mengubah objek JSON items menjadi daftar teks HTML
-            let daftarItemsHtml = '';
-            const items = pesanan.items || {};
-
-            for (let key in items) {
-                if (items[key] > 0) {
-                    const nama = namaGorenganMap[key] || key;
-                    daftarItemsHtml += `<li class="flex justify-between py-1 text-xs border-b border-gray-800">
-                        <span>${nama}</span>
-                        <b class="text-amber-400">x${items[key]}</b>
-                    </li>`;
-                }
-            }
-
-            const cardHtml = `
-                <div id="card-${pesanan.id}" class="bg-gray-800 border-2 ${isDone ? 'border-gray-700 opacity-60' : (isUnpaid ? 'border-amber-500/40' : 'border-amber-500')} rounded-2xl p-4 shadow-lg space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="bg-amber-500 text-black font-extrabold px-3 py-1 rounded-lg text-sm">#A-0${pesanan.id}</span>
-                        <span class="text-xs ${isUnpaid ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10'} px-2 py-1 rounded font-bold">
-                            ${isUnpaid ? '⏳ Menunggu Bayar' : (isDone ? '✅ Selesai' : '🔥 Siap Digoreng')}
-                        </span>
-                    </div>
-
-                    <div class="border-y border-gray-700 py-2 space-y-1">
-                        <p class="text-xs text-amber-400 font-semibold mb-2">Tingkat Crispy: ${pesanan.crispy_level}</p>
-                        
-                        <!-- Rincian Gorengan -->
-                        <div class="bg-gray-900/50 p-2.5 rounded-xl">
-                            <p class="text-[10px] text-gray-400 font-bold mb-1 uppercase tracking-wider">Item Pesanan:</p>
-                            <ul>
-                                ${daftarItemsHtml || '<li class="text-xs text-gray-500">Tidak ada item</li>'}
-                            </ul>
-                        </div>
-
-                        <div class="pt-2 flex justify-between items-center">
-                            <span class="text-xs text-gray-400">Total Pembayaran:</span>
-                            <b class="text-white text-sm">Rp ${pesanan.total.toLocaleString('id-ID')}</b>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end pt-1">
-                        ${isDone 
-                            ? `<span class="text-xs text-emerald-400 font-bold">✓ Gorengan Siap Diambil</span>` 
-                            : `<button onclick="selesaikanPesanan(${pesanan.id}, this)" ${isUnpaid ? 'disabled class="opacity-50 cursor-not-allowed bg-gray-700 text-gray-400 font-bold px-4 py-2 rounded-xl text-xs"' : 'class="bg-amber-500 hover:bg-amber-600 text-black font-extrabold px-4 py-2 rounded-xl text-xs"'}>
-                                ${isUnpaid ? 'Menunggu Pembayaran...' : 'Tandai Selesai Digoreng'}
-                               </button>`
-                        }
-                    </div>
+            <div class="border-y border-gray-700 py-2 space-y-2">
+                <p class="text-xs text-amber-400 font-semibold">Tingkat Crispy: ${pesanan.crispy_level || 'Standard'}</p>
+                
+                <div class="bg-gray-900/80 p-3 rounded-xl border border-gray-700/50">
+                    <p class="text-[10px] text-gray-400 font-bold mb-1.5 uppercase tracking-wider">Item Pesanan:</p>
+                    <ul>
+                        ${daftarItemsHtml || '<li class="text-xs text-gray-500 italic">Tidak ada rincian item</li>'}
+                    </ul>
                 </div>
-            `;
-            container.insertAdjacentHTML('beforeend', cardHtml);
-        }
 
-        async function selesaikanPesanan(id, btn) {
-            btn.disabled = true;
-            btn.innerText = 'Memperbarui...';
+                <div class="pt-1 flex justify-between items-center">
+                    <span class="text-xs text-gray-400">Total Pembayaran:</span>
+                    <b class="text-white text-sm">Rp ${(pesanan.total || 0).toLocaleString('id-ID')}</b>
+                </div>
+            </div>
 
-            const { error } = await supabaseClient
-                .from('pesanan')
-                .update({ status: 'siap_ambil' })
-                .eq('id', id);
-
-            if (error) {
-                alert('Gagal memperbarui status: ' + error.message);
-                btn.disabled = false;
-            }
-        }
-
-        function playBellSound() {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-            audio.play().catch(e => {});
-        }
-
-        loadPesananAwal();
-    </script>
-</body>
-</html>
+            <div class="flex justify-end pt-1">
+                ${isDone 
+                    ? `<span class="text-xs text-emerald-400 font-bold">✓ Gorengan Siap Diambil</span>` 
+                    : `<button onclick="selesaikanPesanan(${pesanan.id}, this)" ${isUnpaid ? 'disabled class="opacity-50 cursor-not-allowed bg-gray-700 text-gray-400 font-bold px-4 py-2 rounded-xl text-xs"' : 'class="bg-amber-500 hover:bg-amber-600 text-black font-extrabold px-4 py-2 rounded-xl text-xs"'}>
+                        ${isUnpaid ? 'Menunggu Pembayaran...' : 'Tandai Selesai Digoreng'}
+                       </button>`
+                }
+            </div>
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', cardHtml);
+}
