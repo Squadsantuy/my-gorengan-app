@@ -4,6 +4,10 @@
     {
       "source": "/penjual",
       "destination": "/penjual.html"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
     }
   ]
 }
