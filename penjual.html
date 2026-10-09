@@ -36,10 +36,6 @@
         };
 
         async function loadPesananAwal() {
-            const { data, error } = await supabaseClient
-                .from('pesanan')
-                .select('*')
-                .order('id', { ascending: false });
     // Mengambil tanggal hari ini (Format: YYYY-MM-DD)
     const hariIni = new Date().toISOString().split('T')[0];
 
