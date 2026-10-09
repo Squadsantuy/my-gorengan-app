@@ -63,24 +63,26 @@
         }
 
         async function loadPesananAwal() {
-            const hariIniLokal = getTanggalLokalHariIni();
+    // Mengambil titik awal jam 00:00:00 hari ini sesuai Waktu Indonesia Barat (WIB)
+    const awalHariIni = new Date();
+    awalHariIni.setHours(0, 0, 0, 0);
 
-            // Filter mengambil pesanan dari jam 00:00:00 lokal hari ini
-            const { data, error } = await supabaseClient
-                .from('pesanan')
-                .select('*')
-                .gte('created_at', `${hariIniLokal}T00:00:00`)
-                .order('id', { ascending: false });
+    const { data, error } = await supabaseClient
+        .from('pesanan')
+        .select('*')
+        .gte('created_at', awalHariIni.toISOString()) // Membandingkan dengan timestamp ISO UTC yang akurat
+        .order('id', { ascending: false });
 
-            const container = document.getElementById('daftar-pesanan');
-            container.innerHTML = '';
-            
-            if (data && data.length > 0) {
-                data.forEach(p => tambahKartuPesanan(p));
-            } else {
-                container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk hari ini.</p>`;
-            }
-        }
+    const container = document.getElementById('daftar-pesanan');
+    container.innerHTML = '';
+    
+    if (data && data.length > 0) {
+        data.forEach(p => tambahKartuPesanan(p));
+    } else {
+        container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk hari ini.</p>`;
+    }
+}
+
 
         // Listener Realtime Supabase
         supabaseClient
