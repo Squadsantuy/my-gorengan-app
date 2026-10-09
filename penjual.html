@@ -26,7 +26,7 @@
 
     <script>
         const SUPABASE_URL = 'https://nibxqxbvwrnvgjbncvys.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
+        const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const namaGorenganMap = {
@@ -35,33 +35,24 @@
             'qty-bakwan': '🥦 Bakwan Sayur'
         };
 
+        // LOAD PESANAN HANYA HARI INI
         async function loadPesananAwal() {
-    // Mengambil tanggal hari ini (Format: YYYY-MM-DD)
-    const hariIni = new Date().toISOString().split('T')[0];
+            // Mengambil tanggal hari ini (Format: YYYY-MM-DD)
+            const hariIni = new Date().toISOString().split('T')[0];
 
-    const { data, error } = await supabaseClient
-        .from('pesanan')
-        .select('*')
-        .gte('created_at', `${hariIni}T00:00:00`) // Hanya ambil pesanan mulai jam 00:00 hari ini
-        .order('id', { ascending: false });
-
-    const container = document.getElementById('daftar-pesanan');
-    container.innerHTML = '';
-    
-    if (data && data.length > 0) {
-        data.forEach(p => tambahKartuPesanan(p));
-    } else {
-        container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk hari ini.</p>`;
-    }
-}
-
+            const { data, error } = await supabaseClient
+                .from('pesanan')
+                .select('*')
+                .gte('created_at', `${hariIni}T00:00:00`) // Hanya ambil pesanan mulai jam 00:00 hari ini
+                .order('id', { ascending: false });
 
             const container = document.getElementById('daftar-pesanan');
             container.innerHTML = '';
+            
             if (data && data.length > 0) {
                 data.forEach(p => tambahKartuPesanan(p));
             } else {
-                container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk.</p>`;
+                container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk hari ini.</p>`;
             }
         }
 
@@ -123,10 +114,9 @@
                         </div>
                     </div>
 
-                    <!-- Tombol Aksi Penjual -->
                     <div class="flex justify-end gap-2 pt-1">
                         ${isTaken 
-                            ? `<span class="text-xs text-slate-500 font-bold"> Selesai & Diambil</span>` 
+                            ? `<span class="text-xs text-slate-500 font-bold">✓ Selesai & Diambil</span>` 
                             : (isDone 
                                 ? `<button onclick="ubahStatus(${pesanan.id}, 'sudah_diambil', this)" class="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-black px-4 py-2 rounded-xl text-xs shadow-lg shadow-emerald-500/20">
                                     <i class="fa-solid fa-check me-1"></i> Sudah Diambil
