@@ -1,6 +1,6 @@
 {
-  "name": "MyGorengan",
-  "short_name": "MyGorengan",
+  "name": "MyGORENGAN_APP",
+  "short_name": "MyGORENGAN_APP",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0F172A",
