@@ -29,145 +29,153 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYnhxeGJ2d3JudmdqYm5jdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNzcxMDQsImV4cCI6MjEwNjk1MzEwNH0.p0FtDSXBIOLRMzal8sg4YHpf__cjxD9V9XmAxHIRJ84';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const namaGorenganMap = {
-    'qty-tahu': '🥟 Tahu Isi Crispy',
-    'qty-tempe': '🟨 Tempe Mendoan',
-    'qty-bakwan': '🥦 Bakwan Sayur'
-};
+        const namaGorenganMap = {
+            'qty-tahu': '🥟 Tahu Isi Crispy',
+            'qty-tempe': '🟨 Tempe Mendoan',
+            'qty-bakwan': '🥦 Bakwan Sayur'
+        };
 
-// 1. Minta Izin Notifikasi Browser saat Halaman Dibuka
-if ('Notification' in window && Notification.permission !== 'granted') {
-    Notification.requestPermission();
-}
-
-// 2. Fungsi Memutar Suara Notifikasi Nyaring & Pop-up
-function bunyikanNotifikasiPesanan(nomorAntrean) {
-    // Suara Bel Dapur
-    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-    audio.play().catch(e => console.log('Audio autoplay diblokir browser:', e));
-
-    // Pop-Up Notifikasi Browser (Meskipun penjual lagi buka tab lain)
-    if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🔔 PESANAN BARU MASUK!', {
-            body: `Ada pesanan baru ${nomorAntrean}! Segera cek dapur.`,
-            icon: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png',
-            vibrate: [300, 100, 300]
-        });
-    }
-}
-
-// 3. Load Pesanan Hari Ini
-async function loadPesananAwal() {
-    const hariIni = new Date().toISOString().split('T')[0];
-
-    const { data, error } = await supabaseClient
-        .from('pesanan')
-        .select('*')
-        .gte('created_at', `${hariIni}T00:00:00`)
-        .order('id', { ascending: false });
-
-    const container = document.getElementById('daftar-pesanan');
-    container.innerHTML = '';
-    
-    if (data && data.length > 0) {
-        data.forEach(p => tambahKartuPesanan(p));
-    } else {
-        container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk hari ini.</p>`;
-    }
-}
-
-// 4. Realtime Listener Khusus Pesanan Baru (INSERT)
-supabaseClient
-    .channel('penjual_dapur')
-    .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'pesanan' },
-        (payload) => {
-            const pesananBaru = payload.new;
-            bunyikanNotifikasiPesanan(`#A-0${pesananBaru.id}`);
-            loadPesananAwal();
+        // Minta Izin Notifikasi Browser saat Halaman Dibuka
+        if ('Notification' in window && Notification.permission !== 'granted') {
+            Notification.requestPermission();
         }
-    )
-    .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'pesanan' },
-        () => {
-            loadPesananAwal();
+
+        function bunyikanNotifikasiPesanan(nomorAntrean) {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.play().catch(e => console.log('Audio Autoplay diblokir browser:', e));
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('🔔 PESANAN BARU MASUK!', {
+                    body: `Pesanan ${nomorAntrean} sudah dibayar! Segera goreng.`,
+                    icon: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png',
+                    vibrate: [300, 100, 300]
+                });
+            }
         }
-    )
-    .subscribe();
 
-function tambahKartuPesanan(pesanan) {
-    const container = document.getElementById('daftar-pesanan');
-    const isDone = pesanan.status === 'siap_ambil';
-    const isTaken = pesanan.status === 'sudah_diambil';
-    const isUnpaid = pesanan.status === 'menunggu_pembayaran';
-
-    let daftarItemsHtml = '';
-    const items = pesanan.items || {};
-
-    for (let key in items) {
-        const qty = parseInt(items[key]);
-        if (qty > 0) {
-            const nama = namaGorenganMap[key] || key;
-            daftarItemsHtml += `
-                <li class="flex justify-between py-1 text-xs border-b border-slate-800">
-                    <span class="text-slate-200">${nama}</span>
-                    <b class="text-emerald-400">x${qty}</b>
-                </li>`;
+        // Ambil Tanggal Hari Ini Sesuai Jam Lokal HP (WIB)
+        function getTanggalLokalHariIni() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
         }
-    }
 
-    const cardHtml = `
-        <div id="card-${pesanan.id}" class="bg-slate-800 border-2 ${isTaken ? 'border-slate-800 opacity-40' : (isDone ? 'border-emerald-500' : (isUnpaid ? 'border-amber-500/40' : 'border-emerald-500/70'))} rounded-2xl p-4 shadow-lg space-y-3">
-            <div class="flex justify-between items-center">
-                <span class="bg-emerald-500 text-slate-900 font-extrabold px-3 py-1 rounded-lg text-sm">#A-0${pesanan.id}</span>
-                <span class="text-xs ${isTaken ? 'text-slate-400 bg-slate-700' : (isUnpaid ? 'text-amber-400 bg-amber-500/10' : (isDone ? 'text-emerald-400 bg-emerald-500/20' : 'text-emerald-400 bg-emerald-500/10'))} px-2.5 py-1 rounded-lg font-bold">
-                    ${isTaken ? '✔️ Sudah Diambil' : (isUnpaid ? '⏳ Menunggu Bayar' : (isDone ? '🔔 Ready Diambil' : '🔥 Siap Digoreng'))}
-                </span>
-            </div>
+        async function loadPesananAwal() {
+            const hariIniLokal = getTanggalLokalHariIni();
 
-            <div class="border-y border-slate-700 py-2 space-y-2">
-                <p class="text-xs text-emerald-400 font-semibold">Tingkat Crispy: ${pesanan.crispy_level || 'Standard'}</p>
-                
-                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
-                    <p class="text-[10px] text-slate-400 font-bold mb-1.5 uppercase tracking-wider">Item Pesanan:</p>
-                    <ul>
-                        ${daftarItemsHtml || '<li class="text-xs text-slate-500 italic">Tidak ada rincian item</li>'}
-                    </ul>
-                </div>
+            // Filter mengambil pesanan dari jam 00:00:00 lokal hari ini
+            const { data, error } = await supabaseClient
+                .from('pesanan')
+                .select('*')
+                .gte('created_at', `${hariIniLokal}T00:00:00`)
+                .order('id', { ascending: false });
 
-                <div class="pt-1 flex justify-between items-center">
-                    <span class="text-xs text-slate-400">Total Pembayaran:</span>
-                    <b class="text-white text-sm">Rp ${(pesanan.total || 0).toLocaleString('id-ID')}</b>
-                </div>
-            </div>
+            const container = document.getElementById('daftar-pesanan');
+            container.innerHTML = '';
+            
+            if (data && data.length > 0) {
+                data.forEach(p => tambahKartuPesanan(p));
+            } else {
+                container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk hari ini.</p>`;
+            }
+        }
 
-            <div class="flex justify-end gap-2 pt-1">
-                ${isTaken 
-                    ? `<span class="text-xs text-slate-500 font-bold">✓ Selesai & Diambil</span>` 
-                    : (isDone 
-                        ? `<button onclick="ubahStatus(${pesanan.id}, 'sudah_diambil', this)" class="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-black px-4 py-2 rounded-xl text-xs shadow-lg shadow-emerald-500/20">
-                            <i class="fa-solid fa-check me-1"></i> Sudah Diambil
-                           </button>`
-                        : `<button onclick="ubahStatus(${pesanan.id}, 'siap_ambil', this)" ${isUnpaid ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-700 text-slate-400 font-bold px-4 py-2 rounded-xl text-xs"' : 'class="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-black px-4 py-2 rounded-xl text-xs"'}>
-                            ${isUnpaid ? 'Menunggu Pembayaran...' : 'Tandai Selesai Digoreng'}
-                           </button>`
-                    )
+        // Listener Realtime Supabase
+        supabaseClient
+            .channel('penjual_dapur')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'pesanan' },
+                () => {
+                    loadPesananAwal();
                 }
-            </div>
-        </div>
-    `;
-    container.insertAdjacentHTML('beforeend', cardHtml);
-}
+            )
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'pesanan' },
+                (payload) => {
+                    // Bunyikan notifikasi ketika status berubah menjadi lagi_digoreng (Lunas)
+                    if (payload.new.status === 'lagi_digoreng' && payload.old.status === 'menunggu_pembayaran') {
+                        bunyikanNotifikasiPesanan(`#A-0${payload.new.id}`);
+                    }
+                    loadPesananAwal();
+                }
+            )
+            .subscribe();
 
-async function ubahStatus(id, statusBaru, btn) {
-    btn.disabled = true;
-    btn.innerText = 'Memperbarui...';
-    await supabaseClient.from('pesanan').update({ status: statusBaru }).eq('id', id);
-}
+        function tambahKartuPesanan(pesanan) {
+            const container = document.getElementById('daftar-pesanan');
+            const isDone = pesanan.status === 'siap_ambil';
+            const isTaken = pesanan.status === 'sudah_diambil';
+            const isUnpaid = pesanan.status === 'menunggu_pembayaran';
 
-loadPesananAwal();
-</script>
+            let daftarItemsHtml = '';
+            const items = pesanan.items || {};
+
+            for (let key in items) {
+                const qty = parseInt(items[key]);
+                if (qty > 0) {
+                    const nama = namaGorenganMap[key] || key;
+                    daftarItemsHtml += `
+                        <li class="flex justify-between py-1 text-xs border-b border-slate-800">
+                            <span class="text-slate-200">${nama}</span>
+                            <b class="text-emerald-400">x${qty}</b>
+                        </li>`;
+                }
+            }
+
+            const cardHtml = `
+                <div id="card-${pesanan.id}" class="bg-slate-800 border-2 ${isTaken ? 'border-slate-800 opacity-40' : (isDone ? 'border-emerald-500' : (isUnpaid ? 'border-amber-500/40' : 'border-emerald-500/70'))} rounded-2xl p-4 shadow-lg space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="bg-emerald-500 text-slate-900 font-extrabold px-3 py-1 rounded-lg text-sm">#A-0${pesanan.id}</span>
+                        <span class="text-xs ${isTaken ? 'text-slate-400 bg-slate-700' : (isUnpaid ? 'text-amber-400 bg-amber-500/10' : (isDone ? 'text-emerald-400 bg-emerald-500/20' : 'text-emerald-400 bg-emerald-500/10'))} px-2.5 py-1 rounded-lg font-bold">
+                            ${isTaken ? '✔️ Sudah Diambil' : (isUnpaid ? '⏳ Menunggu Bayar' : (isDone ? '🔔 Ready Diambil' : '🔥 Siap Digoreng'))}
+                        </span>
+                    </div>
+
+                    <div class="border-y border-slate-700 py-2 space-y-2">
+                        <p class="text-xs text-emerald-400 font-semibold">Tingkat Crispy: ${pesanan.crispy_level || 'Standard'}</p>
+                        
+                        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
+                            <p class="text-[10px] text-slate-400 font-bold mb-1.5 uppercase tracking-wider">Item Pesanan:</p>
+                            <ul>
+                                ${daftarItemsHtml || '<li class="text-xs text-slate-500 italic">Tidak ada rincian item</li>'}
+                            </ul>
+                        </div>
+
+                        <div class="pt-1 flex justify-between items-center">
+                            <span class="text-xs text-slate-400">Total Pembayaran:</span>
+                            <b class="text-white text-sm">Rp ${(pesanan.total || 0).toLocaleString('id-ID')}</b>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-1">
+                        ${isTaken 
+                            ? `<span class="text-xs text-slate-500 font-bold">✓ Selesai & Diambil</span>` 
+                            : (isDone 
+                                ? `<button onclick="ubahStatus(${pesanan.id}, 'sudah_diambil', this)" class="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-black px-4 py-2 rounded-xl text-xs shadow-lg shadow-emerald-500/20">
+                                    <i class="fa-solid fa-check me-1"></i> Sudah Diambil
+                                   </button>`
+                                : `<button onclick="ubahStatus(${pesanan.id}, 'siap_ambil', this)" ${isUnpaid ? 'disabled class="opacity-50 cursor-not-allowed bg-slate-700 text-slate-400 font-bold px-4 py-2 rounded-xl text-xs"' : 'class="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-black px-4 py-2 rounded-xl text-xs"'}>
+                                    ${isUnpaid ? 'Menunggu Pembayaran...' : 'Tandai Selesai Digoreng'}
+                                   </button>`
+                            )
+                        }
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', cardHtml);
+        }
+
+        async function ubahStatus(id, statusBaru, btn) {
+            btn.disabled = true;
+            btn.innerText = 'Memperbarui...';
+            await supabaseClient.from('pesanan').update({ status: statusBaru }).eq('id', id);
+        }
+
+        loadPesananAwal();
+    </script>
 </body>
 </html>
