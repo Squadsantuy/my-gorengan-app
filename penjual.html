@@ -40,6 +40,25 @@
                 .from('pesanan')
                 .select('*')
                 .order('id', { ascending: false });
+    // Mengambil tanggal hari ini (Format: YYYY-MM-DD)
+    const hariIni = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await supabaseClient
+        .from('pesanan')
+        .select('*')
+        .gte('created_at', `${hariIni}T00:00:00`) // Hanya ambil pesanan mulai jam 00:00 hari ini
+        .order('id', { ascending: false });
+
+    const container = document.getElementById('daftar-pesanan');
+    container.innerHTML = '';
+    
+    if (data && data.length > 0) {
+        data.forEach(p => tambahKartuPesanan(p));
+    } else {
+        container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">Belum ada pesanan masuk hari ini.</p>`;
+    }
+}
+
 
             const container = document.getElementById('daftar-pesanan');
             container.innerHTML = '';
