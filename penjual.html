@@ -19,7 +19,42 @@
             <i class="fa-solid fa-circle text-[8px] animate-ping"></i> Realtime Sync
         </span>
     </header>
+<!-- Control Panel Penjual (Buka/Tutup Toko & Stok Menu) -->
+<div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl mb-6 space-y-3">
+    <div class="flex justify-between items-center pb-2 border-b border-slate-700">
+        <div>
+            <h3 class="font-bold text-sm text-emerald-400">🏪 Status Gerobak</h3>
+            <p class="text-[10px] text-slate-400">Atur ketersediaan toko secara real-time</p>
+        </div>
+        <select id="select-status-toko" onchange="updateStatusToko(this.value)" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none">
+            <option value="buka">🟢 Buka</option>
+            <option value="tutup">🔴 Tutup</option>
+            <option value="habis">🟡 Laris Manis (Habis)</option>
+        </select>
+    </div>
 
+    <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase mb-2">Ketersediaan Stok Menu:</p>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+            <label class="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-700">
+                <span>🥟 Tahu Isi</span>
+                <input type="checkbox" id="stok-qty-tahu" onchange="toggleStokMenu('qty-tahu', this.checked)" class="accent-emerald-500 w-4 h-4">
+            </label>
+            <label class="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-700">
+                <span>🟨 Tempe Mendoan</span>
+                <input type="checkbox" id="stok-qty-tempe" onchange="toggleStokMenu('qty-tempe', this.checked)" class="accent-emerald-500 w-4 h-4">
+            </label>
+            <label class="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-700">
+                <span>🥦 Bakwan Sayur</span>
+                <input type="checkbox" id="stok-qty-bakwan" onchange="toggleStokMenu('qty-bakwan', this.checked)" class="accent-emerald-500 w-4 h-4">
+            </label>
+            <label class="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-700">
+                <span>🍌 Pisang Goreng</span>
+                <input type="checkbox" id="stok-qty-pisang" onchange="toggleStokMenu('qty-pisang', this.checked)" class="accent-emerald-500 w-4 h-4">
+            </label>
+        </div>
+    </div>
+</div>
     <div id="daftar-pesanan" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- List pesanan muncul di sini -->
     </div>
@@ -178,6 +213,37 @@
         }
 
         loadPesananAwal();
+        let currentStokMenu = { 'qty-tahu': true, 'qty-tempe': true, 'qty-bakwan': true, 'qty-pisang': true };
+
+async function loadPengaturanToko() {
+    const { data } = await supabaseClient.from('pengaturan').select('*');
+    if (data) {
+        data.forEach(item => {
+            if (item.key === 'status_toko') {
+                document.getElementById('select-status-toko').value = item.value;
+            }
+            if (item.key === 'stok_menu') {
+                currentStokMenu = item.value;
+                for (let key in currentStokMenu) {
+                    const el = document.getElementById(`stok-${key}`);
+                    if (el) el.checked = currentStokMenu[key];
+                }
+            }
+        });
+    }
+}
+
+async function updateStatusToko(val) {
+    await supabaseClient.from('pengaturan').upsert({ key: 'status_toko', value: val });
+}
+
+async function toggleStokMenu(menuId, isAvailable) {
+    currentStokMenu[menuId] = isAvailable;
+    await supabaseClient.from('pengaturan').upsert({ key: 'stok_menu', value: currentStokMenu });
+}
+
+// Panggil saat halaman diload
+loadPengaturanToko();
     </script>
 </body>
 </html>
