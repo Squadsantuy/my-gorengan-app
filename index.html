@@ -402,7 +402,71 @@ async function simulasiBayarWebhook() {
         btnBayar.innerText = 'Bayar Via Webhook (QRIS)';
     }
 }
+let statusToko = 'buka';
+let stokMenu = { 'qty-tahu': true, 'qty-tempe': true, 'qty-bakwan': true, 'qty-pisang': true };
 
+function listenRealtimePengaturan() {
+    // Ambil status awal
+    supabaseClient.from('pengaturan').select('*').then(({ data }) => {
+        if (data) {
+            data.forEach(item => {
+                if (item.key === 'status_toko') statusToko = item.value;
+                if (item.key === 'stok_menu') stokMenu = item.value;
+            });
+            updateTampilanPembeli();
+        }
+    });
+
+    // Subskripsi Realtime perubahan status dari penjual
+    supabaseClient
+        .channel('realtime_pengaturan')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pengaturan' }, (payload) => {
+            if (payload.new.key === 'status_toko') statusToko = payload.new.value;
+            if (payload.new.key === 'stok_menu') stokMenu = payload.new.value;
+            updateTampilanPembeli();
+        })
+        .subscribe();
+}
+
+function updateTampilanPembeli() {
+    const btnPesan = document.getElementById('btn-pesan');
+
+    // 1. Cek Status Buka/Tutup Toko
+    if (statusToko === 'tutup') {
+        btnPesan.disabled = true;
+        btnPesan.className = 'w-full bg-slate-800 text-slate-500 font-bold py-3.5 rounded-2xl cursor-not-allowed';
+        btnPesan.innerHTML = '🔴 Toko Sedang Tutup / Libur';
+    } else if (statusToko === 'habis') {
+        btnPesan.disabled = true;
+        btnPesan.className = 'w-full bg-amber-500/20 text-amber-400 font-bold py-3.5 rounded-2xl cursor-not-allowed border border-amber-500/30';
+        btnPesan.innerHTML = '🟡 Gorengan Laris Manis (Habis Hari Ini)';
+    } else {
+        btnPesan.disabled = false;
+        btnPesan.className = 'w-full bg-brand hover:bg-brandDark text-slate-900 font-black py-3.5 rounded-2xl transition duration-200 shadow-lg shadow-brand/20 flex justify-center items-center gap-2';
+        btnPesan.innerHTML = '<span>Pesan Sekarang</span><i class="fa-solid fa-arrow-right text-sm"></i>';
+    }
+
+    // 2. Cek Stok Menu per Item
+    for (let key in stokMenu) {
+        const itemCard = document.getElementById(key)?.closest('.bg-cardBg');
+        if (itemCard) {
+            if (!stokMenu[key]) {
+                itemCard.classList.add('opacity-40', 'pointer-events-none');
+                if (!itemCard.querySelector('.text-habis')) {
+                    itemCard.insertAdjacentHTML('beforeend', '<span class="text-habis text-[10px] text-red-400 font-bold bg-red-500/10 px-2 py-1 rounded-lg border border-red-500/20">Habis</span>');
+                }
+            } else {
+                itemCard.classList.remove('opacity-40', 'pointer-events-none');
+                const badgeHabis = itemCard.querySelector('.text-habis');
+                if (badgeHabis) badgeHabis.remove();
+            }
+        }
+    }
+}
+
+// Panggil listener saat aplikasi berjalan
+listenRealtimePengaturan();
+        
     </script>
 </body>
 </html>
