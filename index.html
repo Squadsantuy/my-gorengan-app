@@ -346,6 +346,63 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
         }
+        // Masukkan Nomor WhatsApp Penjual (Gunakan format 62, contoh: 6281234567890)
+const NOMOR_WA_PENJUAL = '6289637474994'; 
+
+async function simulasiBayarWebhook() {
+    if (!activeOrderId) return;
+    const btnBayar = document.getElementById('btn-bayar');
+    btnBayar.innerText = 'Memproses Webhook...';
+    btnBayar.disabled = true;
+
+    try {
+        const response = await fetch('/api/webhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: activeOrderId, payment_status: 'PAID' })
+        });
+
+        const resData = await response.json();
+        if (resData.success) {
+            btnBayar.classList.add('hidden');
+            
+            // Susun Draf Pesan WhatsApp Konfirmasi Pembayaran
+            let rincianItemsText = '';
+            const namaGorenganMap = {
+                'qty-tahu': '🥟 Tahu Isi Crispy',
+                'qty-tempe': '🟨 Tempe Mendoan',
+                'qty-bakwan': '🥦 Bakwan Sayur'
+            };
+
+            for (let key in qtyMap) {
+                if (qtyMap[key] > 0) {
+                    const nama = namaGorenganMap[key] || key;
+                    rincianItemsText += `• ${nama} x${qtyMap[key]}\n`;
+                }
+            }
+
+            const totalBayar = hitungTotal();
+            const pesanWA = `Halo Abang Gorengan! 👋\n\nSaya sudah melakukan pembayaran untuk pesanan:\n📌 *Nomor Antrean:* #A-0${activeOrderId}\n\n📋 *Rincian Pesanan:*\n${rincianItemsText}\n🔥 *Tingkat Crispy:* ${selectedCrispyLevel}\n💰 *Total:* Rp ${totalBayar.toLocaleString('id-ID')}\n✅ *Status:* Pembayaran Sukses (QRIS)\n\nMohon segera diproses ya, terima kasih! 🙏`;
+
+            // Arahkan Otomatis ke WhatsApp Penjual
+            const urlWA = `https://wa.me/${NOMOR_WA_PENJUAL}?text=${encodeURIComponent(pesanWA)}`;
+            
+            setTimeout(() => {
+                window.location.href = urlWA;
+            }, 1000);
+
+        } else {
+            alert('Webhook Gagal: ' + resData.message);
+            btnBayar.disabled = false;
+            btnBayar.innerText = 'Bayar Via Webhook (QRIS)';
+        }
+    } catch (err) {
+        alert('Gagal terhubung ke API Webhook');
+        btnBayar.disabled = false;
+        btnBayar.innerText = 'Bayar Via Webhook (QRIS)';
+    }
+}
+
     </script>
 </body>
 </html>
