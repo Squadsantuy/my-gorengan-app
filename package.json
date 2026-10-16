@@ -1,6 +1,6 @@
 {
   "name": "my-gorengan-app",
-  "version": "1.0.0+2.7",
+  "version": "1.2.7",
   "description": "Aplikasi Super App MyGorengan Modern berbasis PWA",
   "main": "index.html",
   "scripts": {
